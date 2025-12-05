@@ -3,7 +3,7 @@ spec:
   name: llm-1
   type: openai
   config:
-    model_name: gpt-4.1
+    model_name: gpt-3.5-turbo
 
 ---
 kind: agent

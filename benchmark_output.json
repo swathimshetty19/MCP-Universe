@@ -1,0 +1,52 @@
+[
+  {
+    "benchmark": {
+      "description": "Test the agent for weather forecasting",
+      "agent": "ReAct-agent",
+      "tasks": [
+        "dummy/tasks/weather_1.json",
+        "dummy/tasks/weather_2.json"
+      ]
+    },
+    "task_results": {
+      "dummy/tasks/weather_1.json": {
+        "evaluation_results": [
+          {
+            "config": {
+              "func": "json -> get(city)",
+              "op": "=",
+              "value": "San Francisco",
+              "op_args": null,
+              "desc": ""
+            },
+            "response": "{\"city\": \"San Francisco\", \"weather\": \"Overnight: Temperature 60\\u00b0F with showers and thunderstorms, gusts up to 39 mph, 90% chance of precipitation. Thursday: High 67\\u00b0F, showers, and thunderstorms, gusts up to 46 mph, 90% chance of precipitation.\"}",
+            "passed": true,
+            "reason": "",
+            "error": ""
+          }
+        ]
+      },
+      "dummy/tasks/weather_2.json": {
+        "evaluation_results": [
+          {
+            "config": {
+              "func": "json -> get(city)",
+              "op": "=",
+              "value": "New York",
+              "op_args": null,
+              "desc": ""
+            },
+            "response": "{\"city\": \"New York City\", \"weather\": \"This Afternoon: Temperature: 50\\u00b0F, Wind: 18 mph NW, Forecast: A slight chance of rain showers before 4pm. Partly sunny, with a high near 50. Chance of precipitation is 20%.\"}",
+            "passed": false,
+            "reason": "output is not equal to ground-truth",
+            "error": ""
+          }
+        ]
+      }
+    },
+    "task_trace_ids": {
+      "dummy/tasks/weather_1.json": "3b24b359-a89d-4539-89e0-1beefb7c8aa3",
+      "dummy/tasks/weather_2.json": "5f49fa7f-d483-4d50-b648-8996d4ff3bad"
+    }
+  }
+]

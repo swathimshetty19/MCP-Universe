@@ -10,6 +10,8 @@ import click
 import pandas as pd
 import yfinance as yf
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.server import Context
+from mcpuniverse.mcp.servers.yahoo_finance.checkpoint_backend import YahooCheckpointBackend
 from mcpuniverse.common.logger import get_logger
 
 
@@ -67,6 +69,7 @@ def build_server(port: int) -> FastMCP:
     - get_option_chain: Fetch the option chain for a given ticker symbol, expiration date, and option type.
     - get_recommendations: Get recommendations or upgrades/downgrades for a given ticker symbol from yahoo finance. You can also specify the number of months back to get upgrades/downgrades for, default is 12.
     """,
+        checkpoint_backend=YahooCheckpointBackend,
     )
 
     @yfinance_server.tool(
@@ -85,7 +88,71 @@ def build_server(port: int) -> FastMCP:
             Default is "1d"
     """,
     )
+
     async def get_historical_stock_prices(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    interval: str = "1d",
+    ctx: Context = None,
+    ) -> str:
+        # ---------- normal Yahoo fetch ----------
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            hist = ticker_obj.history(
+                start=start_date,
+                end=end_date,
+                interval=interval,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"Error fetching historical data for {ticker}: {exc}") from exc
+
+        if hist.empty:
+            rows: list[dict[str, Any]] = []
+        else:
+            hist = hist.reset_index()
+            rows = hist.to_dict(orient="records")
+
+        # ---------- checkpoint logic with explicit debug ----------
+        checkpoint_capsule: dict[str, Any] | None = None
+        checkpoint_debug: str | None = None
+
+        if ctx is None:
+            checkpoint_debug = "no_ctx"  # context was not injected
+        else:
+            backend = getattr(ctx.session, "checkpoint_backend", None)
+            if backend is None:
+                checkpoint_debug = "no_backend_on_session"
+            else:
+                try:
+                    checkpoint_capsule = await backend.create_checkpoint(
+                        session=ctx.session,
+                        state={
+                            "type": "historical_prices",
+                            "ticker": ticker,
+                            "start_date": start_date,
+                            "end_date": end_date,
+                            "interval": interval,
+                            "rows": rows,
+                        },
+                    )
+                    checkpoint_debug = "created"
+                except Exception as exc:
+                    checkpoint_debug = f"backend_error: {repr(exc)}"
+
+        payload = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "interval": interval,
+            "rows": rows,
+            "checkpoint": checkpoint_capsule,        # still what client should use
+            "checkpoint_debug": checkpoint_debug,    # <-- NEW: tells us WHY
+        }
+
+        return json.dumps(payload, default=str)
+    
+    '''async def get_historical_stock_prices(
             ticker: str, start_date: str, end_date: str, interval: str = "1d"
     ) -> str:
         """Get historical stock prices for a given ticker symbol
@@ -115,7 +182,7 @@ def build_server(port: int) -> FastMCP:
         hist_data = company.history(start=start_date, end=end_date, interval=interval)
         hist_data = hist_data.reset_index(names="Date")
         hist_data = hist_data.to_json(orient="records", date_format="iso")
-        return hist_data
+        return hist_data'''
 
     @yfinance_server.tool(
         name="get_stock_info",
