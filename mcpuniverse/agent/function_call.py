@@ -77,7 +77,9 @@ class FunctionCall(BaseAgent):
         self._logger = get_logger(f"{self.__class__.__name__}:{self._name}")
         self._history: List[str] = []
 
-    def _convert_mcp_tools_to_function_calls(self, tools: Dict[str, List[Tool]]) -> List[Dict[str, Any]]:
+    def _convert_mcp_tools_to_function_calls(
+        self, tools: Dict[str, List[Tool]]
+    ) -> List[Dict[str, Any]]:
         """
         Convert MCP tools to function call format for LLM.
 
@@ -221,7 +223,9 @@ class FunctionCall(BaseAgent):
         """
         self._history.append(f"{history_type.title()}: {message}")
 
-    async def _handle_none_response(self, iter_num: int, callbacks: List[Any], tracer: Tracer) -> AgentResponse:
+    async def _handle_none_response(
+        self, iter_num: int, callbacks: List[Any], tracer: Tracer
+    ) -> AgentResponse:
         """Handle case where LLM returns None response."""
         self._logger.error("LLM returned None response, stopping execution")
         error_msg = (
@@ -344,7 +348,11 @@ class FunctionCall(BaseAgent):
 
         except json.JSONDecodeError as e:
             self._logger.error("Failed to parse response: %s", str(e))
-            error_msg = f"Encountered an error in parsing LLM response:\\n{content}\\n\\nPlease try again."
+            error_msg = (
+                "Encountered an error in parsing LLM response:\n"
+                f"{content}\n\n"
+                "Please try again."
+            )
             self._add_history(
                 history_type="error",
                 message=error_msg
@@ -412,7 +420,10 @@ class FunctionCall(BaseAgent):
             if iter_num > 0:
                 messages.append({
                     "role": "user",
-                    "content": f"You have {self._config.max_iterations - iter_num} steps remaining. Please continue."
+                    "content": (
+                        f"You have {self._config.max_iterations - iter_num} steps remaining. "
+                        "Please continue."
+                    )
                 })
 
             self._add_history(
@@ -445,11 +456,84 @@ class FunctionCall(BaseAgent):
                 # Handle responses that may contain both tool_calls and content (e.g., GPT-5)
                 has_tool_calls = hasattr(message_obj, 'tool_calls') and message_obj.tool_calls
                 has_content = hasattr(message_obj, 'content') and message_obj.content
+                # for official kimi-k2-thinking
+                has_reasoning_content = (
+                    hasattr(message_obj, 'reasoning_content') and
+                    message_obj.reasoning_content
+                )
+                # for openrouter
+                has_reasoning_details = (
+                    hasattr(message_obj, 'reasoning_details') and
+                    message_obj.reasoning_details
+                )
+
+                if has_reasoning_content:
+                    content = message_obj.reasoning_content.strip()
+                    messages.append({
+                        "role": "assistant",
+                        "content": content
+                    })
+                    if content:
+                        self._add_history(
+                            history_type="reasoning_content",
+                            message=f"LLM reasoning: {content}"
+                        )
+                        await send_message_async(
+                            callbacks,
+                            message=CallbackMessage(
+                                source=__file__,
+                                type=MessageType.LOG,
+                                metadata={
+                                    "event": "plain_text",
+                                    "data": "".join([
+                                        f"{'=' * 66}\n",
+                                        f"Iteration: {iter_num + 1}\n",
+                                        f"{'-' * 66}\n",
+                                        f"\033[32mThought with reasoning: {content}\n\033[0m"
+                                    ])
+                                }
+                            )
+                        )
+
+                if has_reasoning_details:
+                    reasoning_details = message_obj.reasoning_details
+                    # Extract text from reasoning_details (list of dicts)
+                    reasoning_text = ""
+                    if isinstance(reasoning_details, list):
+                        for item in reasoning_details:
+                            if isinstance(item, dict) and item.get("type") == "reasoning.text":
+                                reasoning_text = item.get("text", "")
+                                break
+                    elif hasattr(reasoning_details, "text"):
+                        reasoning_text = reasoning_details.text
+
+                    if reasoning_text:
+                        self._add_history(
+                            history_type="reasoning_details",
+                            message=f"LLM reasoning details: {reasoning_text}"
+                        )
+                        await send_message_async(
+                            callbacks,
+                            message=CallbackMessage(
+                                source=__file__,
+                                type=MessageType.LOG,
+                                metadata={
+                                    "event": "plain_text",
+                                    "data": "".join([
+                                        f"{'=' * 66}\n",
+                                        f"Iteration: {iter_num + 1}\n",
+                                        f"{'-' * 66}\n",
+                                        f"\033[32mReasoning details: {reasoning_text}\n\033[0m"
+                                    ])
+                                }
+                            )
+                        )
 
                 if has_tool_calls:
                     # Handle function calls first
                     await self._handle_function_calls(
                         message_obj.tool_calls,
+                        message_obj.reasoning_details if has_reasoning_details else None,
                         messages,
                         iter_num,
                         tracer,
@@ -483,26 +567,28 @@ class FunctionCall(BaseAgent):
                                     }
                                 )
                             )
-                    continue
                 if has_content:
                     content = message_obj.content.strip()
-                    result = await self._handle_content_response(content, messages, iter_num, callbacks, tracer)
+                    result = await self._handle_content_response(
+                        content, messages, iter_num, callbacks, tracer
+                    )
                     if result is not None:
                         return result
                     continue
 
-                # Handle case where message has no content or tool_calls
-                self._logger.warning("Received message with no content or tool_calls")
-                error_msg = "Received an empty response from the LLM. Please try again."
-                self._add_history(
-                    history_type="error",
-                    message=error_msg
-                )
-                # Add error as user message to guide the next iteration
-                messages.append({
-                    "role": "user",
-                    "content": error_msg
-                })
+                if not has_tool_calls and not has_content and not has_reasoning_content:
+                    # Handle case where message has no content or tool_calls
+                    self._logger.warning("Received message with no content or tool_calls")
+                    error_msg = "Received an empty response from the LLM. Please try again."
+                    self._add_history(
+                        history_type="error",
+                        message=error_msg
+                    )
+                    # Add error as user message to guide the next iteration
+                    messages.append({
+                        "role": "user",
+                        "content": error_msg
+                    })
             elif isinstance(response, str):
                 # Fallback for string responses
                 content = response.strip()
@@ -534,13 +620,17 @@ class FunctionCall(BaseAgent):
         return AgentResponse(
             name=self._name,
             class_name=self.__class__.__name__,
-            response="I'm sorry, but I couldn't find a satisfactory answer within the allowed number of iterations.",
+            response=(
+                "I'm sorry, but I couldn't find a satisfactory answer within the "
+                "allowed number of iterations."
+            ),
             trace_id=tracer.trace_id
         )
 
     async def _handle_function_calls(
             self,
             tool_calls: List[Any],
+            reasoning_details: List[Any],
             messages: List[Dict[str, str]],
             iter_num: int,
             tracer: Tracer,
@@ -551,6 +641,7 @@ class FunctionCall(BaseAgent):
 
         Args:
             tool_calls: List of tool calls from the LLM
+            reasoning_details: Reasoning details from the LLM
             messages: Conversation messages list to update
             iter_num: Current iteration number
             tracer: Tracer for logging
@@ -575,6 +666,8 @@ class FunctionCall(BaseAgent):
                 } for tool_call in tool_calls
             ]
         }
+        if reasoning_details:
+            assistant_message["reasoning_details"] = reasoning_details
         messages.append(assistant_message)
 
         # Execute each tool call
