@@ -1,0 +1,87 @@
+{
+  "handles": {
+    "MSFT": {
+      "handle": "yahoo_hist_93efd9cf8b614935811ce2718d830e98",
+      "digest": "788abf917e018da98bc67b53f8ea1f25594474c845a961dfd6b891f966d29534",
+      "expires_at": 1766210654.9881861,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for MSFT from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "AAPL": {
+      "handle": "yahoo_hist_e3433841db044dae92c4dd8d80421eb7",
+      "digest": "edadf714bac6e79e3728373d236c9db5b10e06f127e65dd76429d2165ff56a2f",
+      "expires_at": 1766210650.202454,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for AAPL from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "GOOG": {
+      "handle": "yahoo_hist_2332082b8377469281ab26e78f1dc9dd",
+      "digest": "dca79fc1854dc5ae0f0a74609d1677ef830070f92cf66ceedcd37e8178861983",
+      "expires_at": 1766210650.488939,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for GOOG from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "AMZN": {
+      "handle": "yahoo_hist_5d6354fcd5e243e9b6789afd169e573e",
+      "digest": "a8e4b41c2a23767b78e4dacde86daddeeac68dac8b114a539a21105c06b8f1fb",
+      "expires_at": 1766210650.722547,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for AMZN from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "META": {
+      "handle": "yahoo_hist_7c3834b944ee44bbab31a133d42abc89",
+      "digest": "44fad6e3d26c2ea74807451e7cafdcda5b0c8a1866df5adb07009757482e20c1",
+      "expires_at": 1766210650.994229,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for META from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "NVDA": {
+      "handle": "yahoo_hist_2a3a01f103bc41a3a92a9a7056fb31ef",
+      "digest": "d9715c613a9709f081810f47bdee2be8be97c8813d2e41688b9158631fd1a0da",
+      "expires_at": 1766210651.3467069,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for NVDA from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "TSLA": {
+      "handle": "yahoo_hist_54fd2c94ddbb412aabecca82f0bca3d7",
+      "digest": "1d3162ac60ed274498ffb4e303e453dfc699fce24b7bb517d166091558af7a40",
+      "expires_at": 1766210651.663873,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for TSLA from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "NFLX": {
+      "handle": "yahoo_hist_be7545b1281a4ec08923594debd37bf9",
+      "digest": "035192d58f0143b7eed5ed850926343685c6143c0058219af2450e12d1774260",
+      "expires_at": 1766210651.968833,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for NFLX from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "INTC": {
+      "handle": "yahoo_hist_479984694c444875bdf8c2a3ffd1ea36",
+      "digest": "3156ce651cd8c59052632ff2b8d85b704e518c6f5a7873c1ab00753ceb73e15e",
+      "expires_at": 1766210652.449952,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for INTC from 2023-01-09 to 2025-01-08 (interval=1d)"
+    },
+    "AMD": {
+      "handle": "yahoo_hist_ac6fb73dae344e27b8d3fa530f8be883",
+      "digest": "888c0dce4fb2f2d8202155e15064ede8ef78322cedd10753c967b70e4fcdd870",
+      "expires_at": 1766210652.832969,
+      "ttl_seconds": 3600,
+      "summary": "Daily historical prices for AMD from 2023-01-09 to 2025-01-08 (interval=1d)"
+    }
+  },
+  "summaries": [
+    "Daily historical prices for MSFT from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for AAPL from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for GOOG from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for AMZN from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for META from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for NVDA from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for TSLA from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for NFLX from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for INTC from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for AMD from 2023-01-09 to 2025-01-08 (interval=1d)",
+    "Daily historical prices for MSFT from 2023-01-09 to 2025-01-08 (interval=1d)"
+  ]
+}

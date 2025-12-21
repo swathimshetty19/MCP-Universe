@@ -13,6 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.server import Context
 from mcpuniverse.mcp.servers.yahoo_finance.checkpoint_backend import YahooCheckpointBackend
 from mcpuniverse.common.logger import get_logger
+from pathlib import Path
 
 
 # Define an enum for the type of financial statement
@@ -50,6 +51,10 @@ def build_server(port: int) -> FastMCP:
     :return: The MCP server.
     """
 
+    backend = YahooCheckpointBackend(
+        default_ttl_seconds=3600,
+        storage_file=Path.home() / ".mcp_yahoo_checkpoints.json",
+    )
     yfinance_server = FastMCP(
         "yfinance",
         port=port,
@@ -69,7 +74,7 @@ def build_server(port: int) -> FastMCP:
     - get_option_chain: Fetch the option chain for a given ticker symbol, expiration date, and option type.
     - get_recommendations: Get recommendations or upgrades/downgrades for a given ticker symbol from yahoo finance. You can also specify the number of months back to get upgrades/downgrades for, default is 12.
     """,
-        checkpoint_backend=YahooCheckpointBackend,
+        checkpoint_backend=backend,
     )
 
     @yfinance_server.tool(
@@ -90,6 +95,143 @@ def build_server(port: int) -> FastMCP:
     )
 
     async def get_historical_stock_prices(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    interval: str = "1d",
+    *,
+    ctx: Context,
+    ) -> str:
+        # ---------- setup & backend / cache wiring ----------
+        backend = getattr(ctx.session, "checkpoint_backend", None) if ctx is not None else None
+
+        cache_key: str | None = None
+        cached_state: dict[str, Any] | None = None
+        source = "fresh_yahoo"  # will be "checkpoint_cache_hit" on reuse
+        checkpoint_capsule: dict[str, Any] | None = None
+        checkpoint_debug: str | None = None
+        checkpoint_summary = (
+            f"Daily historical prices for {ticker} "
+            f"from {start_date} to {end_date} (interval={interval})"
+        )
+
+        # ---------- NEW: checkpoint lookup (handle + result) ----------
+        lookup_handle: str | None = None
+        lookup_result: dict[str, Any] | None = None
+
+        if backend is not None and hasattr(backend, "lookup_checkpoint"):
+            try:
+                # Stable logical label for this query
+                lookup_label = f"{ticker}|{start_date}|{end_date}|{interval}"
+
+                lookup = await backend.lookup_checkpoint(
+                    session=ctx.session,
+                    params={"label": lookup_label},
+                )
+
+                if lookup.found and lookup.handle is not None:
+                    lookup_handle = lookup.handle
+                    # Resolve the actual stored result for the handle
+                    if hasattr(backend, "get_checkpoint_state"):
+                        lookup_result = await backend.get_checkpoint_state(
+                            session=ctx.session,
+                            handle=lookup.handle,
+                        )
+                        source = "checkpoint_lookup_hit"
+            except Exception as exc:
+                checkpoint_debug = f"checkpoint_lookup_error: {repr(exc)}"
+
+        # Try cache first if we have a checkpoint backend with cache helpers
+        if backend is None:
+            checkpoint_debug = "no_backend_on_session" if ctx is not None else "no_ctx"
+        else:
+            # Not all backends must support these, so we guard with hasattr
+            if hasattr(backend, "make_cache_key") and hasattr(backend, "get_cached_state"):
+                try:
+                    cache_key = backend.make_cache_key(ticker, start_date, end_date, interval)
+                    cached_state = await backend.get_cached_state(cache_key)
+                except Exception as exc:  # non-fatal, we just log in debug field
+                    checkpoint_debug = f"cache_lookup_error: {repr(exc)}"
+            else:
+                checkpoint_debug = "backend_no_cache_index"
+
+        # ---------- either use checkpoint lookup, cache, or call Yahoo ----------
+        if lookup_result is not None:
+            rows = lookup_result.get("rows", [])
+        elif cached_state is not None:
+            rows = cached_state.get("rows", [])
+            source = "checkpoint_cache_hit"
+
+            # 🔑 NEW: always surface a checkpoint capsule
+            checkpoint_capsule = await backend.create_checkpoint(
+                session=ctx.session,
+                state=cached_state,
+                summary=checkpoint_summary,
+            )
+        else:
+            # ❌ Cache miss — normal Yahoo fetch
+            try:
+                ticker_obj = yf.Ticker(ticker)
+                hist = ticker_obj.history(
+                    start=start_date,
+                    end=end_date,
+                    interval=interval,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Error fetching historical data for {ticker}: {exc}") from exc
+
+            if hist.empty:
+                rows: list[dict[str, Any]] = []
+            else:
+                hist = hist.reset_index()
+                rows = hist.to_dict(orient="records")
+
+            # ---------- create checkpoint with cache_key (if backend available) ----------
+            if backend is not None:
+                try:
+                    # Ensure we always have a cache_key for this query
+                    if cache_key is None and hasattr(backend, "make_cache_key"):
+                        cache_key = backend.make_cache_key(ticker, start_date, end_date, interval)
+                    elif cache_key is None:
+                        # final fallback – deterministic string
+                        cache_key = f"{ticker}|{start_date}|{end_date}|{interval}"
+
+                    state = {
+                        "type": "historical_prices",
+                        "ticker": ticker,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "interval": interval,
+                        "rows": rows,
+                        "cache_key": cache_key,
+                    }
+
+                    checkpoint_capsule = await backend.create_checkpoint(
+                        session=ctx.session,
+                        state=state,
+                        summary=checkpoint_summary,
+                    )
+                    checkpoint_debug = "created"
+                except Exception as exc:
+                    checkpoint_debug = f"backend_error: {repr(exc)}"
+
+        payload = {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date,
+            "interval": interval,
+            "rows": rows,
+            "checkpoint": checkpoint_capsule,
+            "checkpoint_debug": checkpoint_debug,
+            "source": source,  # "fresh_yahoo" or "checkpoint_cache_hit"
+            "checkpoint_handle": lookup_handle,
+            "checkpoint_lookup_result": lookup_result,
+        }
+
+        return json.dumps(payload, default=str)
+
+
+    '''async def get_historical_stock_prices(
     ticker: str,
     start_date: str,
     end_date: str,
@@ -150,7 +292,7 @@ def build_server(port: int) -> FastMCP:
             "checkpoint_debug": checkpoint_debug,    # <-- NEW: tells us WHY
         }
 
-        return json.dumps(payload, default=str)
+        return json.dumps(payload, default=str)'''
     
     '''async def get_historical_stock_prices(
             ticker: str, start_date: str, end_date: str, interval: str = "1d"
